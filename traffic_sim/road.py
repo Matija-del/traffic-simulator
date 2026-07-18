@@ -1,7 +1,7 @@
 from typing import List, Union
 import numpy as np
 from .constants import CarIndex, PartIndex
-
+from .geometry import calc_sector
 
 class Road:
     """Represents a ring-road simulation environment.
@@ -34,9 +34,8 @@ class Road:
             number_of_parts: int,
             number_of_cars: int,
             v_initial: float,
-            reaction_factors: float
     ) -> None:
-
+        
         # Constructor Argument Validation
         if radius <= 0:
             raise ValueError("Radius must be a positive number.")
@@ -51,9 +50,10 @@ class Road:
         self.num_p: int = number_of_parts
 
         self.history: List[np.ndarray] = []
+        
 
         self._cars: np.ndarray = self.initiate_cars(
-            numc=number_of_cars, v_0=v_initial, rf_index=reaction_factors
+            numc=number_of_cars, v_initial=v_initial
         )
         self._parts: np.ndarray = self.initiate_parts(
             nump=number_of_parts, v_0=v_initial
@@ -81,8 +81,8 @@ class Road:
 
     @cars.setter
     def cars(self, new_cars_data: np.ndarray) -> None:
-        """Partially update vehicle properties (positions, velocities, and acceleration)."""
-        self._cars[[CarIndex.POSITIONS, CarIndex.VELOCITIES, CarIndex.ACCELERATION]] = new_cars_data
+        """Partially update vehicle properties (positions, velocities)."""
+        self._cars[[CarIndex.POSITIONS, CarIndex.VELOCITIES]] = new_cars_data
 
     @property
     def parts(self) -> np.ndarray:
@@ -97,7 +97,7 @@ class Road:
     # ==========================================================================
     #     Initialization methods
     # ==========================================================================
-    def initiate_cars(self, numc: int, v_0: float, rf_index: float, dt: float = 0.1) -> np.ndarray:
+    def initiate_cars(self, numc: int, v_initial : float, dt: float = 0.1) -> np.ndarray:
         """Configure and populate the state-matrix of the vehicles.
 
         Parameters
@@ -106,8 +106,6 @@ class Road:
             Number of cars.
         v_0 : float
             Starting speed limit boundary.
-        rf_index : float
-            Safety distance modifier based on driver reactions.
         dt : float, optional
             Step time frame, by default 0.1.
 
@@ -120,18 +118,16 @@ class Road:
 
         # Position mapping using constants
         cars[CarIndex.POSITIONS] = np.linspace(0, 2 * np.pi, numc, endpoint=False)
-        cars[CarIndex.VELOCITIES] = np.full(numc, v_0)
-        cars[CarIndex.ACCELERATION] = np.zeros(numc)
+        cars[CarIndex.VELOCITIES] = np.full(numc, 0)
         cars[CarIndex.LOOK_AHEAD] = np.random.randint(0, numc, (numc))
+        
+        # Standard reaction time
+        cars[CarIndex.TAOS] = np.ones((numc)) * 2
+        cars[CarIndex.MIN_DISTANCE] = cars[CarIndex.VELOCITIES] * cars[CarIndex.TAOS] / self.radius
 
-        # Minimum safe gaps calculation
-        cars[CarIndex.MIN_DISTANCE] = (
-                cars[CarIndex.VELOCITIES] * dt * np.random.normal(loc=0.1, scale=rf_index, size=numc)
-        )
-
-        cars[CarIndex.CAR_WEIGHTS] = np.random.rand(numc)
-        cars[CarIndex.SECTOR_WEIGHTS] = np.random.rand(numc)
-
+        cars[CarIndex.ALPHAS] = np.random.normal(loc=50, scale=0.1, size=numc) 
+        cars[CarIndex.BETAS] = np.random.normal(loc=10, scale=0.01, size=numc) 
+        
         return cars
 
     def initiate_parts(self, nump: int, v_0: float) -> np.ndarray:
@@ -154,7 +150,21 @@ class Road:
         parts[PartIndex.MAX_SPEEDS] = np.full(nump, v_0)
 
         return parts
-
-    def add_history(self, position: np.ndarray) -> None:
-        """Append vehicle positioning records to track frames history."""
-        self.history.append(position)
+        
+    def change_speed_limit(self, sector : int, new_speed : float) -> None:
+        """Change speed limit in one sector on the road."""
+        if sector >= self.num_p or sector < 0:
+            raise ValueError(f"Value must be between 0 and {self.num_p}.")
+        
+        avg_speed = np.average(self._parts[1])
+        old_speed = self._parts[1][sector]
+        new_speed = np.clip(new_speed, avg_speed*0.95, avg_speed*1.05)
+        
+        self._parts[1][sector] = new_speed
+        
+    def update_s_min(self):
+        """Updates minimum distance base on the current speed and reaction time."""
+        self.cars[CarIndex.MIN_DISTANCE] = self.cars[CarIndex.VELOCITIES] * self.cars[CarIndex.TAOS] / self.radius
+            
+        
+        

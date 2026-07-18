@@ -11,32 +11,25 @@ road = Road(
     name="Circuit de Monaco",
     radius=150.0,
     number_of_parts=5,
-    number_of_cars=30,
+    number_of_cars=10,
     v_initial=25.0,
-    reaction_factors=0.3,
-    tolerance=0.1,
-    steps=1000,
 )
 
 animation = Animation(
-    geometric_data=[road.radius, road.num_p, road.num_c, road.steps]
+    geometric_data=[road.radius, road.num_p, road.num_c, 0.1]
 )
 
-dt = 0.1
+dt = animation.dt
+
 
 # 2. Main Simulation Loop
-for step in range(road.steps):
+for step in range(animation.steps):
     
     # Extract structural state slices using clean wrappers
     positions = road.cars[0]  # POSITIONS
     velocities = road.cars[1]  # VELOCITIES
     
-    animation.note_congestion(
-        step=step, 
-        positions=positions, 
-        velocities=velocities, 
-        lim_speeds=road.parts[1]
-    )
+    road.update_s_min()
     
     # On every 1000th repetition change the speed limit of one sector
     if step // 10 == 0:
@@ -57,6 +50,12 @@ for step in range(road.steps):
     (alphas, betas, taos) = (road.cars[4], road.cars[5], road.cars[6])
     look_ahead_mat = np.eye(road.num_c)  # Identity placeholder for visualization
     min_gaps = road.cars[4]
+    
+    animation.note_congestion(
+        step=step, 
+        s_diff=gaps,
+        s_min=min_gaps
+    )
 
     car_accelerations = calc_acc_car(
         v=velocities,
@@ -79,9 +78,6 @@ for step in range(road.steps):
         acc_car=car_accelerations,
         s_diff=gaps,
         s_min=min_gaps,
-        v=velocities,
-        v_diff=v_deltas,
-        v_sect=target_speeds,
         dt=dt
     )
 

@@ -23,10 +23,10 @@ traffic_simulation/
 ├── pyproject.toml            # Modern pip library packaging config
 ├── README.md                 # Project technical documentation
 ├── tests/
-│   └── test_physics_geo.py   # Unit tests covering physics & geometry
+│   └── test_physics_geo.py   # Unit tests covering physics & geometry (may be out of date)
 └── traffic_sim/
     ├── __init__.py           # Package orchestration module
-    ├── animation.py          # Scatter-based dynamic animation engine
+    ├── animation.py          # Scatter-based dynamic animation engine and Animation class
     ├── constants.py          # IntEnum indexes mapping matrix structures
     ├── geometry.py           # Spatial tracking & angular functions
     ├── physics.py            # Kinematic formulas & integration
@@ -71,12 +71,14 @@ Handles mathematical processing over polar/angular representations.
 
 ### 4. `physics.py`
 Encapsulates instantaneous system translation logic.
-- `calc_acc(...)`: Computes multidimensional driver acceleration profiles including surrounding car interactions, speed limits, and friction forces.
+- `calc_acc(...)`: Computes multidimensional driver acceleration profiles including surrounding car interactions, speed limits.
+- `calc_acc_car(...)`: Computes acceleration based on the cars ahead.
+- `calc_acc_sect(...)`: Computes acceleration based on the speed difference between the car and sector it is in.
 - `calc_v(vel, acc, dt)` & `calc_s(pos, vel, acc, radius, dt)`: Standard numeric Euler integration frameworks.
 
-### 5. `animation.py`
+### 5. `animation.py` (`Animation` Class)
 Transforms the polar structural histories directly into moving linear coordinate frames.
-- `animate_cars(radius, history, num_c)`: Loops and redraws moving arrays cleanly over real-time axes.
+- `animate_cars()`: Loops and redraws moving arrays cleanly over real-time axes and at the same time notes the congestion and shows it as color scheme of the cars.
 
 ---
 
@@ -86,66 +88,104 @@ The example below sets up a circular road, computes positions across individual 
 
 ```python
 import numpy as np
-from traffic_sim import Road, animate_cars, s_diffs, calc_sector, calc_acc, calc_v, calc_s, v_diffs, sec_v_diffs
+import matplotlib
+from matplotlib import animation
+import matplotlib.pyplot
+from traffic_sim import *
 
 # 1. Initialize a circular environment
 road = Road(
-    name="Circuit de Monaco", 
-    radius=150.0, 
-    number_of_parts=4, 
-    number_of_cars=12, 
-    v_initial=25.0, 
-    reaction_factors=0.3
+    name="Circuit de Monaco",
+    radius=150.0,
+    number_of_parts=5,
+    number_of_cars=30,
+    v_initial=25.0,
+    reaction_factors=0.3,
+    tolerance=0.1,
+    steps=1000,
+)
+
+animation = Animation(
+    geometric_data=[road.radius, road.num_p, road.num_c, road.steps]
 )
 
 dt = 0.1
-time_steps = 200
 
 # 2. Main Simulation Loop
-for step in range(time_steps):
-    # Extract structural state slices using clean wrappers
-    positions = road.cars[0] # POSITIONS
-    velocities = road.cars[1] # VELOCITIES
+for step in range(road.steps):
     
+    # Extract structural state slices using clean wrappers
+    positions = road.cars[0]  # POSITIONS
+    velocities = road.cars[1]  # VELOCITIES
+    
+    animation.note_congestion(
+        step=step, 
+        positions=positions, 
+        velocities=velocities, 
+        lim_speeds=road.parts[1]
+    )
+    
+    # On every 1000th repetition change the speed limit of one sector
+    if step // 10 == 0:
+        chosen_sector = np.random.randint(0, road.num_p)
+        chosen_speed = road.parts[1][chosen_sector] *(1 + (-1)**(np.random.randint(0,2))*0.1)
+        road.change_speed_limit(sector=chosen_sector, new_speed=chosen_speed)
+
     # Calculate geometric relationships
     gaps = s_diffs(positions)
     sectors = calc_sector(positions, road.num_p)
-    target_speeds = road.parts[1][sectors] # Active zone speed limits
-    
+    target_speeds = road.parts[1][sectors]  # Active zone speed limits
+
     # Calculate velocity deltas
     v_deltas = v_diffs(velocities)
     sec_v_deltas = sec_v_diffs(velocities, target_speeds)
-    
-    # Pack weights and determine acceleration curves
-    weights = (road.cars[5], road.cars[6])
-    look_ahead_mat = np.eye(road.num_c) # Identity placeholder for visualization
+
+    # Pack weights and determine accelerations curves
+    (alphas, betas, taos) = (road.cars[4], road.cars[5], road.cars[6])
+    look_ahead_mat = np.eye(road.num_c)  # Identity placeholder for visualization
     min_gaps = road.cars[4]
-    
+
+    car_accelerations = calc_acc_car(
+        v=velocities,
+        s_diff=gaps,
+        s_min=min_gaps,
+        v_diff=v_deltas[:,0],
+        alpha=alphas,
+        beta=betas,
+        tao=taos
+    )
+        
+    sector_accelerations = calc_acc_sect(
+        v=velocities,
+        v_sect=target_speeds,
+        beta=betas
+    )
+        
     accelerations = calc_acc(
-        s_diffs=gaps,
-        v_diffs=v_deltas,
-        sec_v_diffs=sec_v_deltas,
-        weights=weights,
-        look_ahead=look_ahead_mat,
-        min_s_diffs=min_gaps,
-        velocities=velocities,
+        acc_sect=sector_accelerations,
+        acc_car=car_accelerations,
+        s_diff=gaps,
+        s_min=min_gaps,
+        v=velocities,
+        v_diff=v_deltas,
+        v_sect=target_speeds,
         dt=dt
     )
-    
+
     # Integrate to update kinematics
     new_v = calc_v(velocities, accelerations, dt)
     new_s = calc_s(positions, velocities, accelerations, road.radius, dt)
-    
+
     # Re-assign states via property boundaries
-    road.cars[0] = new_s % (2 * np.pi) # Keeps cars bound inside circular wrap
-    road.cars[1] = np.clip(new_v, 0, 50) # Keep speed safe
-    road.cars[2] = accelerations
+    road.cars[0] = new_s % (2 * np.pi)  # Keeps cars bound inside circular wrap
+    road.cars[1] = v_check(v=new_v, v_sect=target_speeds)  # Keep speed safe
     
     # Append state to track history frames
-    road.add_history(road.cars[0].copy())
+    animation.add_history(road.cars[0].copy())
 
 # 3. View the live-rendered animation interface
-animate_cars(road.radius, road.history, road.num_c)
+animation.animate_cars()
+
 ```
 
 ---

@@ -61,7 +61,7 @@ def s_diffs(positions: np.ndarray) -> np.ndarray:
     switched_positions[0] = positions[-1]
     switched_positions[1:] = positions[:-1]
 
-    diffs = positions - switched_positions
+    diffs = switched_positions - positions
     diffs = np.where(diffs < 0, 2 * np.pi + diffs, diffs)
 
     return diffs

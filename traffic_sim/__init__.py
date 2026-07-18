@@ -1,5 +1,5 @@
 from .road import Road
-from .animation import animate_cars
+from .animation import Animation
 from .geometry import (
     calc_look_ahead,
     calc_sector,
@@ -11,11 +11,14 @@ from .physics import (
     calc_acc,
     calc_v,
     calc_s,
+    calc_acc_car,
+    calc_acc_sect,
+    v_check,
 )
 
 __all__ = [
     "Road",
-    "animate_cars",
+    "Animation",
     "calc_look_ahead",
     "calc_sector",
     "s_diffs",
@@ -24,4 +27,7 @@ __all__ = [
     "calc_acc",
     "calc_v",
     "calc_s",
+    "calc_acc_sect",
+    "calc_acc_car",
+    "v_check",  
 ]
