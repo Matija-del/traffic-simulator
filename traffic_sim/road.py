@@ -91,7 +91,7 @@ class Road:
 
         # Position mapping using constants
         cars[CarIndex.POSITIONS] = np.linspace(0, 2 * np.pi, numc, endpoint=False)
-        cars[CarIndex.VELOCITIES] = np.full(numc, 0)
+        cars[CarIndex.VELOCITIES] = np.full(numc, v_initial)
         cars[CarIndex.LOOK_AHEAD] = np.random.randint(0, numc, (numc))
         
         # Standard reaction time

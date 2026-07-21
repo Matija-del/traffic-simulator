@@ -1,17 +1,17 @@
 # Traffic Simulation Library (`traffic_sim`)
 
-A highly optimized, production-ready micro-simulation framework designed to model, analyze, and animate multi-car vehicular dynamics on circular, multi-sector track topologies using NumPy and Matplotlib.
+A modular micro-simulation framework designed to model, analyze, and animate multi-car vehicular dynamics on circular and multi-segment track topologies using **NumPy**, **Pandas**, and **Matplotlib**.
 
-This library encapsulates physical kinematics, driver look-ahead horizons, spatial tracking, and human factor behavioral delays to provide clean mathematical models for complex emergent traffic phenomena like shockwaves and phantom jams.
+This library encapsulates physical kinematics, driver reaction times ($\\tau$), speed sensitivity parameters ($\\alpha, \\beta$), car-following acceleration, and sector speed compliance to study complex emergent traffic phenomena like phantom traffic jams and bottleneck slowdowns.
 
 ---
 
 ## Key Features
 
-- **Geometric Modeling:** Advanced angular tracking, circular sector mapping, and adaptive spatial wrap-around gap analytics.
-- **Physics Engine:** Modular Euler integration for velocity tracking, acceleration constraints, driver reaction horizons, and multi-factor resistance models.
-- **Robust Architecture:** Complete typing implementation (`typing`), strict matrix validation, and clear data indexing structures using `IntEnum` to avoid magic constants.
-- **Dynamic Visualization:** Built-in Matplotlib `FuncAnimation` wrappers to map polar matrix structures directly to Cartesian coordinates seamlessly.
+- **Flexible Track Architecture:** Standard circular loops, sectorized tracks, and dynamic linked-list road compositions (`Road`, `Parts`, `LinkedRoad`).
+- **Physics Engine:** Euler numerical integration for velocity tracking, distance gap coupling, dynamic driver reaction times, and speed limit compliance.
+- **Type-Safe Matrix Mapping:** Enumerated indices (`IntEnum`) mapping state matrices to eliminate magic numbers across car profiles and road segments.
+- **Interactive Visualizations:** Matplotlib `FuncAnimation` wrappers rendering polar vehicle histories into 2D Cartesian space with color-coded segment indicators and speed legends.
 
 ---
 
@@ -20,145 +20,103 @@ This library encapsulates physical kinematics, driver look-ahead horizons, spati
 ```text
 traffic_simulation/
 │
-├── pyproject.toml            # Modern pip library packaging config
-├── README.md                 # Project technical documentation
-├── tests/
-│   └── test_physics_geo.py   # Unit tests covering physics & geometry (may be out of date)
+├── pyproject.toml         # Modern build and packaging configuration
+├── README.md              # Technical documentation
+├── tests                   
+    ├── test.py            # Unit test suite for physics, track classes, and logic
+    └── test_geometry.py   # Unit test suite for geometry
 └── traffic_sim/
-    ├── __init__.py           # Package orchestration module
-    ├── animation.py          # Scatter-based dynamic animation engine and Animation class
-    ├── constants.py          # IntEnum indexes mapping matrix structures
-    ├── geometry.py           # Spatial tracking & angular functions
-    ├── physics.py            # Kinematic formulas & integration
-    └── road.py               # Principal Road environment class
+    ├── __init__.py        # Package orchestration module
+    ├── animation.py       # Scatter-based dynamic animation renderer and legend display
+    ├── constants.py       # IntEnum mappings for matrix dimensions & segment profiles
+    ├── road.py            # Base Road environment class managing car states
+    ├── parts_road.py      # Sectorized track environment extending Road
+    ├── linked_road.py     # Dynamic linked-list segment road implementation
+    ├── geometry.py        # Geometric functions related to circuit motion and design
+    └── physics.py         # Physics logic, car-following formulas, and Euler integration
 ```
 
 ---
 
 ## Installation
 
-Install the library locally in editable mode directly via pip:
+Install the library locally in editable mode via `pip`:
 
 ```bash
-pip install -e .
+pip install -e .[dev]
+```
+
+### Setup
+
+Clone the repository:
+```bash
+git clone [https://github.com/Matija-del/traffic-simulation.git](https://github.com/Matija-del/traffic-simulation.git)
+cd traffic-simulation
 ```
 
 ### Dependencies
-- `numpy >= 1.20.0`
-- `matplotlib >= 3.4.0`
+- `numpy >= 1.21.0`
+- `pandas >= 1.3.0`
+- `matplotlib >= 3.5.0`
 
 ---
 
-## Module Architecture & API Overview
-
-### 1. `road.py` (`Road` Class)
-The primary state orchestrator representing the circular ring track environment. It handles input safety schema checking via explicit property setters.
-
-- **`radius` (Property):** Gets or dynamically modifies the track radius with safety boundary checks.
-- **`cars` (Property):** Manages the core internal vehicular 2D matrix tracking parameters.
-- **`initiate_cars` / `initiate_parts`:** Generates uniform linspaces for positioning, velocities, and sector bounds.
-
-### 2. `constants.py`
-Replaces unreadable index indexing matrices (`cars[0]`, `parts[1]`) with explicit, type-safe structures:
-- `CarIndex`: Maps `POSITIONS`, `VELOCITIES`, `ACCELERATION`, `LOOK_AHEAD`, `MIN_DISTANCE`, `CAR_WEIGHTS`, `SECTOR_WEIGHTS`.
-- `PartIndex`: Maps `ZONES`, `MAX_SPEEDS`.
-
-### 3. `geometry.py`
-Handles mathematical processing over polar/angular representations.
-- `calc_look_ahead(look_ahead)`: Constructs a directional horizon factor array.
-- `calc_sector(pos, nump)`: Decodes precisely which zone slice an arbitrary radian coordinate lies within.
-- `s_diffs(positions)`: Resolves forward delta-space tracking safely across circular closures ($2\pi$).
-
-### 4. `physics.py`
-Encapsulates instantaneous system translation logic.
-- `calc_acc(...)`: Computes multidimensional driver acceleration profiles including surrounding car interactions, speed limits.
-- `calc_acc_car(...)`: Computes acceleration based on the cars ahead.
-- `calc_acc_sect(...)`: Computes acceleration based on the speed difference between the car and sector it is in.
-- `calc_v(vel, acc, dt)` & `calc_s(pos, vel, acc, radius, dt)`: Standard numeric Euler integration frameworks.
-
-### 5. `animation.py` (`Animation` Class)
-Transforms the polar structural histories directly into moving linear coordinate frames.
-- `animate_cars()`: Loops and redraws moving arrays cleanly over real-time axes and at the same time notes the congestion and shows it as color scheme of the cars.
-
----
-
-## Quick Start Example
-
-The example below sets up a circular road, computes positions across individual cycles, and animates the resulting track traffic:
-
-```python
+# Example Project
+```text
 import numpy as np
-import matplotlib
-# for Linux users matplotlib.use("qtagg")
-from matplotlib import animation
-import matplotlib.pyplot
-import pandas as pd
 from traffic_sim import *
 
 # 1. Initialize a circular environment
-road = Road(
+road_of_parts = LinkedRoad(
     name="Circuit de Monaco",
-    radius=150.0,
-    number_of_parts=5,
     number_of_cars=10,
-    v_initial=25.0,
+    v_initial=20.0,
 )
 
-animation = Animation(
-    geometric_data=[road.radius, road.num_p, road.num_c, 0.1]
-)
+parts_data = [road_of_parts.radius, road_of_parts.numc, road_of_parts.lenght, 0.1]
+lines_data = road_of_parts.lines_dict
+
+animation = Animation(geometric_data=parts_data, lines=lines_data)
 
 dt = animation.dt
 
+print(f"v_0: {road_of_parts.v}")
 
 # 2. Main Simulation Loop
 for step in range(animation.steps):
     
     # Extract structural state slices using clean wrappers
-    positions = road.cars[0]  # POSITIONS
-    velocities = road.cars[1]  # VELOCITIES
+    positions = road_of_parts.cars[0]  # POSITIONS
+    velocities = road_of_parts.cars[1]  # VELOCITIES
+    road_of_parts.update_s_min()
     
-    road.update_s_min()
-    
-    # On every 1000th repetition change the speed limit of one sector
-    if step // 10 == 0:
-        chosen_sector = np.random.randint(0, road.num_p)
-        chosen_speed = road.parts[1][chosen_sector] *(1 + (-1)**(np.random.randint(0,2))*0.1)
-        road.change_speed_limit(sector=chosen_sector, new_speed=chosen_speed)
-
     # Calculate geometric relationships
     gaps = s_diffs(positions)
-    sectors = calc_sector(positions, road.num_p)
-    target_speeds = road.parts[1][sectors]  # Active zone speed limits
-
+    sector_angles = road_of_parts.segments_data[0] / road_of_parts.radius
+    sectors = calc_sector(positions, sector_angles)
+    target_speeds = road_of_parts.segments_data[1][sectors]  # Active zone speed limits
+    
     # Calculate velocity deltas
     v_deltas = v_diffs(velocities)
     sec_v_deltas = sec_v_diffs(velocities, target_speeds)
 
     # Pack weights and determine accelerations curves
-    (alphas, betas, taos) = (road.cars[4], road.cars[5], road.cars[6])
-    look_ahead_mat = np.eye(road.num_c)  # Identity placeholder for visualization
-    min_gaps = road.cars[4]
+    (alphas, betas) = (road_of_parts.cars[4], road_of_parts.cars[5])
+    min_gaps = road_of_parts.cars[4]
     
-    animation.note_congestion(
-        step=step, 
-        s_diff=gaps,
-        s_min=min_gaps
-    )
 
     car_accelerations = calc_acc_car(
         v=velocities,
         s_diff=gaps,
         s_min=min_gaps,
         v_diff=v_deltas[:,0],
-        alpha=alphas,
-        beta=betas,
-        tao=taos
+        alpha=alphas
     )
         
     sector_accelerations = calc_acc_sect(
-        v=velocities,
-        v_sect=target_speeds,
+        cars=[positions, velocities],
+        all_sectors=road_of_parts.segments_data,
+        sector_positions=sectors,
         beta=betas
     )
         
@@ -172,26 +130,69 @@ for step in range(animation.steps):
 
     # Integrate to update kinematics
     new_v = calc_v(velocities, accelerations, dt)
-    new_s = calc_s(positions, velocities, accelerations, road.radius, dt)
+    new_s = calc_s(positions, velocities, accelerations, road_of_parts.radius, dt)
 
     # Re-assign states via property boundaries
-    road.cars[0] = new_s % (2 * np.pi)  # Keeps cars bound inside circular wrap
-    road.cars[1] = v_check(v=new_v, v_sect=target_speeds)  # Keep speed safe
+    road_of_parts.cars[0] = new_s % (2 * np.pi)  # Keeps cars bound inside circular wrap
+    road_of_parts.cars[1] = v_check(v=new_v, v_sect=target_speeds)  # Keep speed safe
     
     # Append state to track history frames
-    animation.add_history(road.cars[0].copy())
+    animation.add_history(road_of_parts.cars[0].copy())
 
 # 3. View the live-rendered animation interface
 animation.animate_cars()
-
 ```
+---
+
+## Module Architecture & API Overview
+
+### 1. `road.py` (`Road` Class)
+The base track class managing vehicle properties and matrix states.
+
+- **`radius` (Property):** Gets or dynamically modifies track radius with non-positive boundary validation.
+- **`cars` (Property):** 2D array tracking 7 key parameters for each car (positions, velocities, look-aheads, safe distances, reaction times, $\\alpha, \\beta$).
+- **`initiate_cars` / `update_s_min`:** Populates initial positions around the ring and dynamically updates safe braking distances based on current velocities and reaction time ($\\tau$).
+
+### 2. `parts_road.py` (`Parts` Class)
+Extends `Road` to partition the circular track into $N$ equal angular sectors with dedicated target speed limits.
+
+- **`parts` (Property):** Matrix holding angular boundaries (`ZONES`) and target speeds (`MAX_SPEEDS`) for each sector.
+
+### 3. `linked_road.py` (`LinkedRoad` & `RoadSegment` Classes)
+Extends `Road` with a linked-list pattern (`RoadSegment`) to model modular road types (*road*, *road work*, *speed up*, *slow down*).
+
+- **`add_segment(segment_type)`:** Appends linked segments to construct custom road maps.
+- **`generate_linked_road()`:** Computes track length, updates geometry, and compiles segment boundaries and color indices for physics and animation.
+- **`change_speed_limit(segment, new_speed)`:** Dynamically adjusts sector speed limits at runtime.
+
+### 4. `constants.py`
+Provides type-safe matrix index accessors using Python `IntEnum`:
+
+- **`CarIndex`:** Maps `POSITIONS`, `VELOCITIES`, `LOOK_AHEAD`, `MIN_DISTANCE`, `ALPHAS`, `BETAS`, `TAOS`.
+- **`PartIndex`:** Maps `ZONES`, `LENGHT`, `MAX_SPEEDS`.
+- **`SegmentIndex` & `SegmentTypes`:** Dictates speed factors, lengths, color styling, and map icons for road segment presets.
+
+### 5. `physics.py`
+Contains instantaneous kinematic and acceleration calculation routines:
+
+- **`calc_acc_car(...)`:** Computes acceleration from car-following gaps using non-linear distance weighting and safe distance thresholds ($s_{min}$).
+- **`calc_acc_sect(...)`:** Computes target acceleration required to transition towards sector speed limits.
+- **`calc_acc(...)`:** Blends car-following and sector speed accelerations dynamically based on proximity ratios.
+- **`calc_v(...)` & `calc_s(...)`:** Executes numerical Euler integration to update vehicle velocities and angular coordinates around the track radius.
+- **`v_check(...)`:** Clamps speeds between 0 and 110% of sector limits.
+
+### 6. `animation.py` (`Animation` Class)
+Transforms angular tracking matrices into polar coordinate animations.
+
+- **`add_history(position)`:** Appends coordinate snapshots for playback.
+- **`animate_cars()`:** Runs Matplotlib `FuncAnimation`, plotting vehicles along circular paths, rendering colored track segments, and outputting speed factor legends.
 
 ---
 
-## 🧪 Testing
+## Running Tests
 
-To verify the library mechanics, execute the comprehensive unit testing suite via terminal:
+Execute the unit test suite via `pytest`:
 
 ```bash
-python -m unittest discover -s tests
+pytest
 ```

@@ -150,29 +150,25 @@ class LinkedRoad(Road):
             
         counter = COUNTER
         
-        segments_data = np.zeros((2, self.number_of_segments))
+        segments_data = np.zeros((3, self.number_of_segments))
         
         lenght = 0        
         current = self.head
         
-        while counter < self.number_of_segments:
-        
-            
-            
-            speed = current.speed_limit
+        while counter < self.number_of_segments:          
             current.speed_limit = self.v           
             self.road_map.append(f"{current.segment_type}: {current.icon}")
             
             lenght += current.lenght
             
-            segments_data[PartIndex.ZONES,counter] = lenght
-            segments_data[PartIndex.MAX_SPEEDS,counter] = current.speed_limit
+            segments_data[PartIndex.LENGHT, counter] = current.lenght
+            segments_data[PartIndex.ZONES, counter] = lenght
+            segments_data[PartIndex.MAX_SPEEDS, counter] = current.speed_limit
             self.lines_dict[counter] = (lenght-current.lenght, lenght, current.color)
             
             
             current = current.next
             counter+=1
-            
             
         self.lenght = lenght
         print(f"Road lenght: {lenght}")
@@ -181,7 +177,7 @@ class LinkedRoad(Road):
         return segments_data
         
     def _get_segments(self):
-        
+        '''
         decision = input("Choose a part(road, road work, speed up, slow down or click ENTER to exit): ")
         
         while decision!="":
@@ -189,7 +185,11 @@ class LinkedRoad(Road):
             print(decision)
             
             decision = input("Choose a part(road, road work, speed up, slow down or click ENTER to exit): ")
-        
+        '''
+        self.add_segment("road work")
+        self.add_segment("road")
+        self.add_segment("speed up")
+        self.add_segment("slow down")
         return self.generate_linked_road()
     # ========================================================================================
     #    Active Functions

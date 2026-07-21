@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib
-# matplotlib.use("qtagg")  for Linux system if used
+matplotlib.use("qtagg")  #for Linux system if used
 from matplotlib import animation
 import matplotlib.pyplot
 import pandas as pd
@@ -10,16 +10,17 @@ from traffic_sim import *
 road_of_parts = LinkedRoad(
     name="Circuit de Monaco",
     number_of_cars=10,
-    v_initial=25.0,
+    v_initial=20.0,
 )
 
 parts_data = [road_of_parts.radius, road_of_parts.numc, road_of_parts.lenght, 0.1]
-
 lines_data = road_of_parts.lines_dict
+
 animation = Animation(geometric_data=parts_data, lines=lines_data)
 
 dt = animation.dt
 
+print(f"v_0: {road_of_parts.v}")
 
 # 2. Main Simulation Loop
 for step in range(animation.steps):
@@ -27,15 +28,8 @@ for step in range(animation.steps):
     # Extract structural state slices using clean wrappers
     positions = road_of_parts.cars[0]  # POSITIONS
     velocities = road_of_parts.cars[1]  # VELOCITIES
-    
     road_of_parts.update_s_min()
     
-    # On every 1000th repetition change the speed limit of one sector
-    if step // 10 == 0:
-        chosen_sector = np.random.randint(0, road_of_parts.number_of_segments)
-        chosen_speed = road_of_partssegments_data[1][chosen_sector] *(1 + (-1)**(np.random.randint(0,2))*0.1)
-        road_of_parts.change_speed_limit(sector=chosen_sector, new_speed=chosen_speed)
-
     # Calculate geometric relationships
     gaps = s_diffs(positions)
     sector_angles = road_of_parts.segments_data[0] / road_of_parts.radius
@@ -47,8 +41,7 @@ for step in range(animation.steps):
     sec_v_deltas = sec_v_diffs(velocities, target_speeds)
 
     # Pack weights and determine accelerations curves
-    (alphas, betas, taos) = (road_of_parts.cars[4], road_of_parts.cars[5], road_of_parts.cars[6])
-    look_ahead_mat = np.eye(road_of_parts.numc)  # Identity placeholder for visualization
+    (alphas, betas) = (road_of_parts.cars[4], road_of_parts.cars[5])
     min_gaps = road_of_parts.cars[4]
     
 
@@ -57,14 +50,13 @@ for step in range(animation.steps):
         s_diff=gaps,
         s_min=min_gaps,
         v_diff=v_deltas[:,0],
-        alpha=alphas,
-        beta=betas,
-        tao=taos
+        alpha=alphas
     )
         
     sector_accelerations = calc_acc_sect(
-        v=velocities,
-        v_sect=target_speeds,
+        cars=[positions, velocities],
+        all_sectors=road_of_parts.segments_data,
+        sector_positions=sectors,
         beta=betas
     )
         

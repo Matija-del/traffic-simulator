@@ -24,7 +24,6 @@ def calc_look_ahead(look_ahead: np.ndarray) -> np.ndarray:
 
     return calc_la
 
-
 def calc_sector(positions: np.ndarray, sector_positions: np.ndarray) -> np.ndarray:
     """Determine the sector index for each car based on its polar position.
 
@@ -44,7 +43,6 @@ def calc_sector(positions: np.ndarray, sector_positions: np.ndarray) -> np.ndarr
     
     return np.array(sector).astype(int)
 
-
 def s_diffs(positions: np.ndarray) -> np.ndarray:
     """Calculate directional spatial differences (gaps) between successive cars.
 
@@ -58,10 +56,8 @@ def s_diffs(positions: np.ndarray) -> np.ndarray:
     np.ndarray
         Angular distances to the car ahead (accounting for circular wrap-around).
     """
-    switched_positions = np.zeros_like(positions)
-    switched_positions[0] = positions[-1]
-    switched_positions[1:] = positions[:-1]
-
+    switched_positions = np.concatenate((positions[1:], np.array([positions[0]])), axis=None)
+    
     diffs = switched_positions - positions
     diffs = np.where(diffs < 0, 2 * np.pi + diffs, diffs)
 

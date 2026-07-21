@@ -1,6 +1,11 @@
 from typing import Optional, Tuple
 import numpy as np
 
+def sign(arr1, arr2):
+    return np.where(arr1>arr2, 1, -1)
+    
+def reactor(arr1, arr2):
+    return np.where(arr1>arr2, 1, -1) * np.e**((arr1 - arr2) / arr1)
 
 def v_diffs(speeds: np.ndarray) -> np.ndarray:
     """Compute difference matrix of speeds between all cars.
@@ -36,13 +41,11 @@ def sec_v_diffs(speeds: np.ndarray, comp_speeds: np.ndarray) -> np.ndarray:
     return comp_speeds - speeds
 
 def calc_acc_car(
-        v : np.ndarray,
-        s_diff : np.ndarray,
-        s_min : np.ndarray,
-        v_diff : np.ndarray,    
-        alpha : np.ndarray,
-        beta : np.ndarray,
-        tao : np.ndarray
+        v: np.ndarray,
+        s_diff: np.ndarray,
+        s_min: np.ndarray,
+        v_diff: np.ndarray,    
+        alpha: np.ndarray
 ) -> np.ndarray:
     """Calculate the vehicle's acceleration contribution based on car-following behavior.
 
@@ -56,32 +59,30 @@ def calc_acc_car(
         Speed differences between leading and following vehicles (v_lead - v_following).
     alpha : np.ndarray
         Sensitivity coefficient for speed-to-distance coupling.
-    beta : np.ndarray
-        Sensitivity coefficient for responding to speed differences.
-    tao : np.ndarray
-        Reaction time delay parameter (time headway).
 
     Returns
     -------
     np.ndarray
         Acceleration component derived from interactions with leading vehicles.
     """
-    # to the minimum gap, while reacting positively/negatively to the velocity difference.
-    # When stopped (v=0, v_diff=0), acc becomes 0 instead of forcing a reverse.
-    tao = np.maximum(tao, 1e-5)
-    acc = -(alpha + beta) * v + alpha * (s_min - s_diff) / tao + beta * (v_diff)
     
+    safe_s = (s_diff - s_min)**4   
+    
+    acc = alpha * sign(s_diff, s_min) / safe_s
+
     return acc
     
-def calc_acc_sect(v : np.ndarray, v_sect : np.ndarray, beta : np.ndarray) -> np.ndarray:
+def calc_acc_sect(cars: np.ndarray, all_sectors: np.ndarray, sector_positions: np.ndarray, beta: np.ndarray) -> np.ndarray:
     """Calculate the acceleration contribution based on sector speed limit compliance.
 
     Parameters
     ----------
-    v : np.ndarray
-        Current speeds of the vehicles.
-    v_sect : np.ndarray
-        Designated speed limits for the current sectors.
+    cars : np.ndarray
+        Car data(s_car, v_car).
+    sector : np.ndarray
+        Sector data(s_sect, v_sect).
+    sector_positions : np.ndarray
+        Sector of cars.
     beta : np.ndarray
         Sensitivity coefficient for matching sector target speeds.
 
@@ -90,17 +91,26 @@ def calc_acc_sect(v : np.ndarray, v_sect : np.ndarray, beta : np.ndarray) -> np.
     np.ndarray
         Acceleration component derived from the sector speed adjustment.
     """
-    v_sect = np.maximum(v_sect, 1e-5)
-    acc = beta * (v_sect - v) / v_sect * v
+    [s_sect, len_sect, v_sect] = all_sectors
+    switched_v_sect = np.concatenate((v_sect[1:], np.array([v_sect[0]])), axis=None)
+    
+    [s_car, v_car] = cars
+    coeff = ((s_sect[sector_positions] - s_car) / len_sect[sector_positions])**2
+    
+    v_ratio = (switched_v_sect[sector_positions] - v_sect[sector_positions]) / (v_sect[sector_positions] + switched_v_sect[sector_positions])
+    next_coeff = 1 - coeff
+    current_coeff = coeff
+    
+    acc = beta * (coeff * reactor(v_sect[sector_positions], v_car) + v_ratio * next_coeff * reactor(switched_v_sect[sector_positions], v_car))
     
     return acc
     
 def calc_acc(
         acc_sect: np.ndarray,
-        acc_car : np.ndarray,
-        s_diff : np.ndarray,
-        s_min : np.ndarray,
-        dt : float = 0.1
+        acc_car: np.ndarray,
+        s_diff: np.ndarray,
+        s_min: np.ndarray,
+        dt: float = 0.1
 ) -> np.ndarray: 
     """Blend sector and car-following acceleration weights safely using dynamic proximity.
 
@@ -122,23 +132,18 @@ def calc_acc(
     np.ndarray
         Combined net acceleration for each vehicle.
     """
-    # Prevent division by zero errors safely
+
     safe_s_min = np.maximum(s_min, 1e-5)
      
-    # If the car ahead is far away (s_diff >> s_min), car_weight drops to 0, 
-    # allowing the sector speed model to take complete control.
-    # If a vehicle gets dangerously close (s_diff -> 0), car_weight maximizes to 1.
-    car_weight = np.clip(s_min / np.maximum(s_diff, 1e-5), 0, 1.0)
-    sect_weight = 1.0 - car_weight
+ 
+    sect_weight = np.clip(s_diff / safe_s_min, 0, 1.0)
+    car_weight = 1.0 - sect_weight
     
     acc = (sect_weight * acc_sect) + (car_weight * acc_car)
     
     return acc
      
-def v_check(
-        v : np.ndarray,
-        v_sect : np.ndarray
-) -> np.ndarray:
+def v_check(v: np.ndarray, v_sect: np.ndarray) -> np.ndarray:
     """Clamp vehicle speeds within realistic safe bounds.
 
     Parameters
